@@ -4,11 +4,17 @@ import { SignInButton, UserButton } from "@clerk/nextjs";
 import { useAuth } from "@clerk/nextjs";
 import { ShoppingCart } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useCartStore } from "@bites/store";
 
 export default function Header() {
   const { userId } = useAuth();
   const cartItems = useCartStore((state) => state.getTotalItems());
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <header className="w-full pt-8 pb-4">
@@ -24,7 +30,6 @@ export default function Header() {
           Bliss
         </Link>
 
-        {/* Global Navigation matching screenshot */}
         <nav className="hidden md:flex gap-10 items-center font-display font-bold text-sm tracking-widest uppercase text-brand-secondary">
           <Link
             href="/"
@@ -32,8 +37,11 @@ export default function Header() {
           >
             Menu
           </Link>
-          <Link href="/" className="hover:text-brand-primary transition-colors">
-            Kitchen
+          <Link
+            href="/orders"
+            className="hover:text-brand-primary transition-colors"
+          >
+            My Orders
           </Link>
           <Link href="/" className="hover:text-brand-primary transition-colors">
             Our Story
@@ -46,7 +54,7 @@ export default function Header() {
               className="w-5 h-5 text-brand-primary cursor-pointer hover:opacity-80 transition-opacity"
               strokeWidth={2.5}
             />
-            {cartItems > 0 && (
+            {mounted && cartItems > 0 && (
               <span className="absolute -top-2 -right-2 bg-brand-primary text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                 {cartItems}
               </span>

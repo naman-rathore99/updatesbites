@@ -6,7 +6,7 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { headers } from "next/headers";
 
-const outfit = Outfit({ 
+const outfit = Outfit({
   subsets: ["latin"],
   variable: "--font-display",
 });
@@ -27,19 +27,18 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const headersList = await headers();
-  const pathname = headersList.get('x-pathname') || '';
-  const isAdmin = pathname.startsWith('/admin');
+  const pathname = headersList.get("x-pathname") || "";
+  const isAdmin = pathname.startsWith("/admin");
 
   return (
     <ClerkProvider>
       <html lang="en">
         <body
+          suppressHydrationWarning
           className={`${outfit.variable} ${dmSans.variable} font-sans min-h-screen bg-brand-neutral text-brand-secondary antialiased flex flex-col`}
         >
           {!isAdmin && <Header />}
-          <div className="flex-1">
-            {children}
-          </div>
+          <div className="flex-1">{children}</div>
           {!isAdmin && <Footer />}
         </body>
       </html>

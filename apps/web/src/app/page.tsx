@@ -1,19 +1,21 @@
 "use client";
 
-import { Star, Plus, Check, Minus, ShoppingCart } from "lucide-react";
+import { useEffect } from "react";
+import { Star, Plus, Minus } from "lucide-react";
 import Link from "next/link";
 // 1. Import BOTH stores and your new Product type
 import { useCartStore, useCatalogStore, type Product } from "@bites/store";
+import { getAllMenuItemsClient } from "@bites/db";
 
 // --- FIXED QUICK ADD COMPONENT ---
 // 2. Update prop type to use the global Product interface
 function QuickAddButton({ product }: { product: Product }) {
-  const items = useCartStore((state: any) => state.items || []);
-  const addItem = useCartStore((state: any) => state.addItem);
-  const updateQuantity = useCartStore((state: any) => state.updateQuantity);
-  const removeItem = useCartStore((state: any) => state.removeItem);
+  const items = useCartStore((state) => state.items || []);
+  const addItem = useCartStore((state) => state.addItem);
+  const updateQuantity = useCartStore((state) => state.updateQuantity);
+  const removeItem = useCartStore((state) => state.removeItem);
 
-  const cartItem = items.find((item: any) => item.productId === product.id);
+  const cartItem = items.find((item) => item.productId === product.id);
   const quantity = cartItem?.quantity || 0;
 
   const handleInitialAdd = (e: React.MouseEvent) => {
@@ -31,16 +33,20 @@ function QuickAddButton({ product }: { product: Product }) {
   const handleIncrement = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    updateQuantity(product.id, quantity + 1);
+    if (cartItem) {
+      updateQuantity(cartItem.id, quantity + 1);
+    }
   };
 
   const handleDecrement = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (quantity <= 1) {
-      removeItem(product.id);
-    } else {
-      updateQuantity(product.id, quantity - 1);
+    if (cartItem) {
+      if (quantity <= 1) {
+        removeItem(cartItem.id);
+      } else {
+        updateQuantity(cartItem.id, quantity - 1);
+      }
     }
   };
 
@@ -85,13 +91,44 @@ function QuickAddButton({ product }: { product: Product }) {
 
 // --- MAIN PAGE COMPONENT ---
 export default function Home() {
-  // 3. Connect directly to your global catalog store! (No fetch needed)
   const menuItems = useCatalogStore((state) => state.items);
+  const setCatalog = useCatalogStore((state) => state.setCatalog);
+
+  useEffect(() => {
+    async function loadMenu() {
+      try {
+        const data = await getAllMenuItemsClient();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mappedData: Product[] = data.map((item: any) => ({
+          id: item.id,
+          title: item.title,
+          price: item.price,
+          desc: item.description,
+          img: item.image_url,
+          category: item.category,
+          badge: item.badge,
+          rating: item.rating,
+          reviews: item.reviews,
+          tagline: item.tagline,
+          isAvailable: item.is_active,
+        }));
+        setCatalog(mappedData);
+      } catch (error) {
+        console.error("Failed to load menu", error);
+      }
+    }
+    loadMenu();
+  }, [setCatalog]);
 
   const CATEGORY_LABELS: Record<string, string> = {
     bowls: "Signature Bowls",
     burgers: "Artisan Burgers",
     desserts: "Decadent Desserts",
+  };
+
+  const getCategoryLabel = (categoryId: string) => {
+    if (CATEGORY_LABELS[categoryId]) return CATEGORY_LABELS[categoryId];
+    return categoryId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
   // Only show categories that actually have items, and respect the isAvailable flag
@@ -177,7 +214,7 @@ export default function Home() {
             {/* Sticky Sidebar Navigation (Desktop) */}
             <nav className="w-full lg:w-64 shrink-0 lg:sticky top-24 max-h-[calc(100vh-120px)] overflow-y-auto hidden lg:block pr-4 space-y-1">
               {categoriesInUse.map((categoryId) => {
-                const label = CATEGORY_LABELS[categoryId] || categoryId;
+                const label = getCategoryLabel(categoryId);
                 return (
                   <a
                     key={categoryId}
@@ -193,7 +230,7 @@ export default function Home() {
             {/* Horizontal Navigation (Mobile) */}
             <nav className="w-full lg:hidden flex overflow-x-auto no-scrollbar gap-2 pb-4 -mb-4 sticky top-16 bg-brand-bg/95 backdrop-blur-md z-40 py-2 border-b border-neutral-200">
               {categoriesInUse.map((categoryId) => {
-                const label = CATEGORY_LABELS[categoryId] || categoryId;
+                const label = getCategoryLabel(categoryId);
                 return (
                   <a
                     key={categoryId}
@@ -213,7 +250,7 @@ export default function Home() {
                   (i) => i.category === categoryId,
                 );
 
-                const label = CATEGORY_LABELS[categoryId] || categoryId;
+                const label = getCategoryLabel(categoryId);
 
                 return (
                   <div
@@ -361,7 +398,7 @@ export default function Home() {
                 Real-time Tracking
               </h4>
               <p className="text-xs text-neutral-500 leading-relaxed font-medium">
-                Watch your meal's journey from our oven to your doorstep in
+                Watch your meal&apos;s journey from our oven to your doorstep in
                 real-time.
               </p>
             </div>

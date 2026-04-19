@@ -83,6 +83,7 @@ export default clerkMiddleware(async (auth, request) => {
     const { sessionClaims } = await auth();
 
     // Cast to Record<string, any> to bypass strict TypeScript errors
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const claims = sessionClaims as Record<string, any>;
 
     // Safely look for the role wherever your JWT template maps it

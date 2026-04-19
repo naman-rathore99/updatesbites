@@ -19,6 +19,8 @@ import Link from "next/link";
 import { useCartStore } from "@bites/store";
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 
 const DynamicMapPicker = dynamic(() => import("../../components/MapPicker"), {
   ssr: false,
@@ -48,6 +50,77 @@ export default function Checkout() {
     landmark: "",
   });
   const [isLocationConfirmed, setIsLocationConfirmed] = useState(false);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+
+  const router = useRouter();
+  const { user } = useUser();
+
+  // --- Cart Data ---
+  const items = useCartStore((state: any) => state.items || []);
+  const removeItem = useCartStore((state: any) => state.removeItem);
+  const updateQuantity = useCartStore((state: any) => state.updateQuantity);
+  const clearCart = useCartStore((state: any) => state.clearCart);
+
+  const subtotal = items.reduce(
+    (sum: number, item: any) => sum + item.price * item.quantity,
+    0,
+  );
+  const gst = Math.round(subtotal * GST_RATE);
+  const deliveryFee = items.length > 0 ? DELIVERY_FEE : 0;
+  const total = subtotal + gst + deliveryFee;
+
+  // --- Order Logic ---
+  const handlePlaceOrder = async () => {
+    if (!user) {
+      alert("Please sign in to place an order.");
+      return;
+    }
+
+    setIsPlacingOrder(true);
+
+    const orderData = {
+      customer_name: user.fullName || user.firstName || "Customer",
+      items: items.map((item: any) => ({
+        productId: item.productId,
+        title: item.title,
+        price: item.price,
+        quantity: item.quantity,
+        img: item.img,
+      })),
+      subtotal,
+      delivery_fee: deliveryFee,
+      gst,
+      total,
+      delivery_address: `${houseDetails.number}, ${houseDetails.landmark ? houseDetails.landmark + ", " : ""}${addressInput}`,
+      delivery_note: "",
+    };
+
+    try {
+      const res = await fetch("http://localhost:8080/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-clerk-user-id": user.id,
+        },
+        body: JSON.stringify(orderData),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        clearCart();
+        alert("Order placed successfully!");
+        router.push(`/order/${data.data.id}`);
+      } else {
+        alert("Failed to place order: " + (data.error || "Unknown error"));
+      }
+    } catch (error) {
+      console.error("Order error:", error);
+      alert("Something went wrong while placing your order.");
+    } finally {
+      setIsPlacingOrder(false);
+    }
+  };
 
   // --- Search Logic ---
   const handleAddressSearch = async (e?: React.FormEvent) => {
@@ -109,19 +182,6 @@ export default function Checkout() {
       },
     );
   };
-
-  // --- Cart Data ---
-  const items = useCartStore((state: any) => state.items || []);
-  const removeItem = useCartStore((state: any) => state.removeItem);
-  const updateQuantity = useCartStore((state: any) => state.updateQuantity);
-
-  const subtotal = items.reduce(
-    (sum: number, item: any) => sum + item.price * item.quantity,
-    0,
-  );
-  const gst = subtotal * GST_RATE;
-  const deliveryFee = items.length > 0 ? DELIVERY_FEE : 0;
-  const total = subtotal + gst + deliveryFee;
 
   // Validation: Must have items, a pin on the map, and a house number
   const canPlaceOrder =
@@ -369,17 +429,25 @@ export default function Checkout() {
             </div>
             <div className="mt-8 flex flex-col gap-4">
               <button
-                disabled={!canPlaceOrder}
+                disabled={!canPlaceOrder || isPlacingOrder}
+                onClick={handlePlaceOrder}
                 className={`
-      w-full py-5 rounded-2xl font-display font-extrabold text-lg tracking-tight transition-all duration-300
+      w-full py-5 rounded-2xl font-display font-extrabold text-lg tracking-tight transition-all duration-300 flex items-center justify-center gap-3
       ${
-        canPlaceOrder
+        canPlaceOrder && !isPlacingOrder
           ? "bg-brand-primary text-white shadow-[0_12px_24px_-10px_rgba(230,81,0,0.5)] hover:bg-orange-600 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
           : "bg-neutral-100 text-neutral-400 cursor-not-allowed"
       }
     `}
               >
-                Complete Order • ₹{total.toFixed(0)}
+                {isPlacingOrder ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Placing Order...
+                  </>
+                ) : (
+                  <>Complete Order • ₹{total.toFixed(0)}</>
+                )}
               </button>
 
               {!canPlaceOrder && items.length > 0 && (

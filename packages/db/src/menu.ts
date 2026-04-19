@@ -1,5 +1,5 @@
-import { supabaseAdmin } from './client';
-import type { MenuItemCreate, MenuItemUpdate } from '@bites/validators';
+import { MenuItemCreate, MenuItemUpdate } from '@bites/validators/src/menu';
+import { supabaseAdmin, supabaseClient } from './client';
 
 export async function getAllMenuItems() {
   const { data, error } = await supabaseAdmin
@@ -9,6 +9,17 @@ export async function getAllMenuItems() {
     .order('id', { ascending: true });
 
   if (error) throw new Error(`Failed to fetch menu items: ${error.message}`);
+  return data;
+}
+
+export async function getAllMenuItemsClient() {
+  const { data, error } = await supabaseClient
+    .from('menu_items')
+    .select('*')
+    .eq('is_active', true)
+    .order('id', { ascending: true });
+
+  if (error) throw new Error(`Failed to fetch menu items client: ${error.message}`);
   return data;
 }
 

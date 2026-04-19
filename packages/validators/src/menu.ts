@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 export const menuItemCreateSchema = z.object({
   title: z.string().min(1, 'Title is required').max(100),
-  price: z.number().int().positive('Price must be positive'),
+  price: z.number().positive('Price must be positive'),
   description: z.string().min(1, 'Description is required').max(500),
   image_url: z.string().url('Must be a valid URL'),
   category: z.string().min(1, 'Category is required'),

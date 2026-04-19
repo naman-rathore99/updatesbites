@@ -181,12 +181,18 @@ export default function AdminMenuPage() {
 
     // Step 2: Save to Prisma via your existing API
     const payload = {
-      ...form,
+      title: form.title,
       price: Number(form.price),
+      description: form.description,
       image_url: finalImageUrl,
+      category: form.category,
+      badge: form.badge || null,
       calories: form.calories ? Number(form.calories) : null,
+      protein: form.protein || null,
+      carbs: form.carbs || null,
       rating: Number(form.rating),
       reviews: Number(form.reviews),
+      tagline: form.tagline || null,
     };
 
     try {
@@ -199,12 +205,17 @@ export default function AdminMenuPage() {
         body: JSON.stringify(payload),
       });
 
+      const data = await res.json();
+
       if (res.ok) {
         await fetchItems();
         handleCancel();
+      } else {
+        alert("Save failed: " + (data.error || "Unknown error") + (data.details ? "\n" + JSON.stringify(data.details) : ""));
       }
     } catch (err) {
       console.error("Save error:", err);
+      alert("An unexpected error occurred while saving.");
     } finally {
       setSaving(false);
     }

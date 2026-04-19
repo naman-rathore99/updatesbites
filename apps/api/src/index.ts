@@ -1,9 +1,8 @@
+import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-import { z } from 'zod';
-
-dotenv.config();
+import { supabaseAdmin } from '@bites/db';
+import { Redis } from '@upstash/redis';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -11,16 +10,52 @@ const port = process.env.PORT || 8080;
 app.use(cors());
 app.use(express.json());
 
-app.get('/health', (req: Request, res: Response) => {
-  res.json({ success: true, message: 'Bites of Bliss API is running' });
+import ordersRouter from './routes/orders';
+app.use('/api/orders', ordersRouter);
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 });
 
-// Error handling middleware to catch everything as JSON 500
-app.use((err: any, req: Request, res: Response, next: express.NextFunction) => {
-  console.error(err);
-  res.status(500).json({ success: false, error: err.message || 'Internal Server Error' });
+app.get('/api/menu', async (req: Request, res: Response) => {
+  try {
+    const cacheKey = 'bites:menu:all';
+
+    const cachedData = await redis.get(cacheKey);
+    if (cachedData) {
+      console.log("Serving from Redis Cache");
+      return res.json({ success: true, data: cachedData, source: 'cache' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('menu_items')
+      .select('*')
+      .order('id', { ascending: true });
+
+    if (error) throw error;
+
+    const formatted = data.map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      price: item.price,
+      desc: item.description,
+      img: item.image_url,
+      category: item.category,
+      badge: item.badge,
+      rating: item.rating,
+      tagline: item.tagline,
+      isAvailable: true
+    }));
+
+    await redis.set(cacheKey, formatted, { ex: 3600 });
+    res.json({ success: true, data: formatted, source: 'supabase' });
+
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  console.log(`🚀 Bites of Bliss API live on http://localhost:${port}`);
 });
