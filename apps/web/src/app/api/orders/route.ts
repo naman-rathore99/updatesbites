@@ -6,7 +6,7 @@ import { auth } from '@clerk/nextjs/server';
 // GET /api/orders — fetch orders (admin gets all, user gets their own)
 export async function GET() {
   try {
-    const { userId } = await auth();
+    const { userId, sessionClaims } = await auth();
     if (!userId) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
@@ -14,9 +14,13 @@ export async function GET() {
       );
     }
 
-    // For now, return all orders (admin view)
-    // TODO: check role — admin gets all, customer gets own
-    const orders = await getAllOrders();
+    const claims = sessionClaims as Record<string, any>;
+    const role = claims?.metadata?.role || claims?.publicMetadata?.role;
+
+    const orders = role === 'admin' 
+      ? await getAllOrders() 
+      : await getOrdersByUser(userId);
+
     return NextResponse.json({ success: true, data: orders });
   } catch (error: any) {
     console.error('[GET /api/orders]', error);

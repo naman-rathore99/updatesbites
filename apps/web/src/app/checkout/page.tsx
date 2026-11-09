@@ -21,6 +21,7 @@ import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
+import { load } from "@cashfreepayments/cashfree-js";
 
 const DynamicMapPicker = dynamic(() => import("../../components/MapPicker"), {
   ssr: false,
@@ -96,28 +97,33 @@ export default function Checkout() {
     };
 
     try {
-      const res = await fetch("http://localhost:8080/api/orders", {
+      const res = await fetch("/api/checkout/cashfree", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-clerk-user-id": user.id,
         },
         body: JSON.stringify(orderData),
       });
 
       const data = await res.json();
 
-      if (data.success) {
-        clearCart();
-        alert("Order placed successfully!");
-        router.push(`/order/${data.data.id}`);
+      if (data.success && data.payment_session_id) {
+        const cashfree = await load({
+          mode: process.env.NEXT_PUBLIC_CASHFREE_ENVIRONMENT === "PRODUCTION" ? "production" : "sandbox",
+        });
+
+        cashfree.checkout({
+          paymentSessionId: data.payment_session_id,
+          redirectTarget: "_self"
+        });
+        // Deliberately not setting isPlacingOrder to false here because we are redirecting
       } else {
-        alert("Failed to place order: " + (data.error || "Unknown error"));
+        alert("Failed to initialize payment: " + (data.error || "Unknown error"));
+        setIsPlacingOrder(false);
       }
     } catch (error) {
       console.error("Order error:", error);
       alert("Something went wrong while placing your order.");
-    } finally {
       setIsPlacingOrder(false);
     }
   };
@@ -330,24 +336,17 @@ export default function Checkout() {
             <h3 className="font-display font-bold text-2xl text-neutral-900">
               Payment Method
             </h3>
-            <div className="grid grid-cols-3 gap-3">
-              <button className="flex flex-col items-center justify-center gap-2 bg-white border-2 border-brand-primary rounded-2xl py-5 shadow-sm">
-                <CreditCard className="w-5 h-5 text-brand-primary" />
-                <span className="text-[9px] font-bold uppercase tracking-widest text-brand-primary">
-                  Card / UPI
-                </span>
-              </button>
-              <button className="flex flex-col items-center justify-center gap-2 bg-neutral-50 border border-neutral-100 rounded-2xl py-5 opacity-60 pointer-events-none">
-                <Apple className="w-5 h-5" />
-                <span className="text-[9px] font-bold uppercase tracking-widest">
-                  Apple Pay
-                </span>
-              </button>
-              <button className="flex flex-col items-center justify-center gap-2 bg-neutral-50 border border-neutral-100 rounded-2xl py-5 opacity-60 pointer-events-none">
-                <BadgeDollarSign className="w-5 h-5" />
-                <span className="text-[9px] font-bold uppercase tracking-widest">
-                  G-Pay
-                </span>
+            <div className="grid grid-cols-1 gap-3">
+              <button className="flex items-center gap-3 bg-white border-2 border-brand-primary rounded-2xl p-5 shadow-sm">
+                <CreditCard className="w-6 h-6 text-brand-primary shrink-0" />
+                <div className="flex flex-col text-left">
+                  <span className="text-xs font-bold uppercase tracking-widest text-brand-primary">
+                    Online Payment
+                  </span>
+                  <span className="text-[10px] text-neutral-500 font-medium">
+                    Cards, UPI, NetBanking, Wallets (via Cashfree)
+                  </span>
+                </div>
               </button>
             </div>
           </section>
@@ -446,7 +445,7 @@ export default function Checkout() {
                     Placing Order...
                   </>
                 ) : (
-                  <>Complete Order • ₹{total.toFixed(0)}</>
+                  <>Pay with Cashfree • ₹{total.toFixed(0)}</>
                 )}
               </button>
 

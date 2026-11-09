@@ -15,14 +15,20 @@
       "**/*"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.bitesofbliss.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.bitesofbliss.app"
     },
-    "scheme": "bitesofbliss"
+    "scheme": "bitesofbliss",
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ]
   }
 }

@@ -46,13 +46,34 @@ export default function Dashboard() {
 
     const fetchOrders = async () => {
       try {
-        // TODO: Replace with your actual backend Supabase/API call
-        // const res = await fetch('/api/orders');
-        // const data = await res.json();
+        const res = await fetch('/api/orders');
+        const json = await res.json();
+        
+        if (json.success) {
+          const fetchedOrders = json.data.map((dbOrder: any) => ({
+            id: dbOrder.id.toString(),
+            status: dbOrder.status.toUpperCase(),
+            total: dbOrder.total,
+            items: dbOrder.items.map((i: any) => `${i.quantity}x ${i.title}`).join(", "),
+            createdAt: new Date(dbOrder.created_at).toLocaleDateString(),
+            estimatedDelivery: dbOrder.status === 'pending' || dbOrder.status === 'preparing' 
+              ? 'approx 30 mins' 
+              : undefined,
+          }));
 
-        // Simulating an empty database for now so the UI is clean
-        setActiveOrders([]);
-        setPastOrders([]);
+          const active = fetchedOrders.filter((o: Order) => 
+            ['PENDING', 'PREPARING', 'READY'].includes(o.status)
+          );
+          const past = fetchedOrders.filter((o: Order) => 
+            ['DELIVERED', 'CANCELLED'].includes(o.status)
+          );
+
+          setActiveOrders(active);
+          setPastOrders(past);
+        } else {
+          setActiveOrders([]);
+          setPastOrders([]);
+        }
       } catch (error) {
         console.error("Failed to fetch live orders:", error);
       } finally {

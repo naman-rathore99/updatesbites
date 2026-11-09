@@ -1,9 +1,9 @@
 "use client";
 
 import { supabaseClient } from "@bites/db";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { OrderResponse } from "@bites/validators";
-import { Star, TrendingUp, Users } from "lucide-react";
+import { TrendingUp, Users, Bell, BellOff, X } from "lucide-react";
 
 interface OrderUI {
   id: string;
@@ -49,6 +49,9 @@ const mapOrderToUI = (dbOrder: OrderResponse): OrderUI => {
 export default function AdminDashboard() {
   const [orders, setOrders] = useState<OrderUI[]>([]);
   const [loading, setLoading] = useState(true);
+  const [audioEnabled, setAudioEnabled] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [toast, setToast] = useState<{ id: number; orderId: number; message: string } | null>(null);
 
   useEffect(() => {
     // 1. Fetch initial orders
@@ -81,7 +84,19 @@ export default function AdminDashboard() {
           const newRecord = payload.new as OrderResponse;
 
           if (payload.eventType === "INSERT") {
-            setOrders((prev) => [mapOrderToUI(newRecord), ...prev]);
+            setOrders((prev) => {
+              const updated = [mapOrderToUI(newRecord), ...prev];
+              // Play sound if new order is pending
+              if (newRecord.status === "pending" && audioEnabled && audioRef.current) {
+                audioRef.current.play().catch(e => console.error("Audio play failed:", e));
+              }
+              return updated;
+            });
+            // Show toast
+            if (newRecord.status === "pending") {
+              setToast({ id: Date.now(), orderId: newRecord.id, message: `New order from ${newRecord.customer_name}!` });
+              setTimeout(() => setToast(null), 15000);
+            }
           } else if (payload.eventType === "UPDATE") {
             setOrders((prev) =>
               prev.map((o) =>
@@ -98,33 +113,19 @@ export default function AdminDashboard() {
     };
   }, []);
 
-  const topPatrons: TopPatron[] = [
-    {
-      id: "1",
-      name: "Elena Vasquez",
-      orders: 23,
-      revenue: "₹28,420",
-      avatar: "👩",
-    },
-    {
-      id: "2",
-      name: "Julian Thorne",
-      orders: 18,
-      revenue: "₹17,090",
-      avatar: "👨",
-    },
-    {
-      id: "3",
-      name: "Sophia Gray",
-      orders: 15,
-      revenue: "₹14,150",
-      avatar: "👱‍♀️",
-    },
-  ];
+
 
   const pendingCount = orders.filter((o) => o.status === "pending").length;
   const preparingCount = orders.filter((o) => o.status === "preparing").length;
   const readyCount = orders.filter((o) => o.status === "ready").length;
+
+  useEffect(() => {
+    // If pending orders go down to 0, stop the ringing
+    if (pendingCount === 0 && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+  }, [pendingCount]);
 
   const handleStatusChange = async (
     orderId: number,
@@ -151,14 +152,42 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8">
+      <audio ref={audioRef} src="/notification.mp3" loop preload="auto" />
+      
       {/* Daily Overview Header */}
-      <div className="mb-12">
-        <h1 className="font-display font-bold text-4xl text-neutral-900 mb-2">
-          Daily Overview
-        </h1>
-        <p className="text-sm text-neutral-500">
-          Today's current metrics and performance
-        </p>
+      <div className="mb-12 flex items-center justify-between">
+        <div>
+          <h1 className="font-display font-bold text-4xl text-neutral-900 mb-2">
+            Daily Overview
+          </h1>
+          <p className="text-sm text-neutral-500">
+            Today's current metrics and performance
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            setAudioEnabled(!audioEnabled);
+            if (!audioEnabled && audioRef.current) {
+               audioRef.current.play().then(() => {
+                 if (pendingCount === 0) {
+                   audioRef.current?.pause();
+                   if (audioRef.current) audioRef.current.currentTime = 0;
+                 }
+               }).catch(e => console.error(e));
+            } else if (audioEnabled && audioRef.current) {
+               audioRef.current.pause();
+               audioRef.current.currentTime = 0;
+            }
+          }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all shadow-sm ${
+            audioEnabled 
+              ? "bg-green-100 text-green-700 border border-green-200" 
+              : "bg-white text-neutral-600 border border-neutral-200"
+          }`}
+        >
+          {audioEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+          {audioEnabled ? "Sound On" : "Sound Off"}
+        </button>
       </div>
 
       {/* KPI Cards - Top Row */}
@@ -353,147 +382,55 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Bottom Row - Financial & Customer Insights */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Transactions */}
-        <div className="bg-white rounded-2xl p-6 border border-neutral-200 shadow-sm">
-          <h3 className="font-bold text-lg text-neutral-900 mb-6">
-            Payment History
-          </h3>
-          <div className="space-y-3">
-            {[
-              {
-                id: "#ORD-00041",
-                date: "Oct 28, 2025",
-                method: "Card (Visa)",
-                amount: "₹824,400.00",
-                status: "COMPLETED",
-              },
-              {
-                id: "#ORD-00029",
-                date: "Oct 27, 2025",
-                method: "UPI Payment",
-                amount: "₹68,890.00",
-                status: "COMPLETED",
-              },
-              {
-                id: "#ORD-00025",
-                date: "Oct 28, 2025",
-                method: "PayPal/Razorpay",
-                amount: "₹324,200.00",
-                status: "PENDING",
-              },
-            ].map((tx) => (
-              <div
-                key={tx.id}
-                className="flex items-center justify-between py-3 border-b border-neutral-100 last:border-0"
-              >
-                <div className="flex-1">
-                  <div className="font-bold text-sm text-neutral-900">
-                    {tx.id}
-                  </div>
-                  <div className="text-xs text-neutral-500">
-                    {tx.date} • {tx.method}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-bold text-sm text-neutral-900">
-                    {tx.amount}
-                  </div>
-                  <span
-                    className={`text-xs font-bold ${tx.status === "COMPLETED" ? "text-green-600" : "text-yellow-600"}`}
-                  >
-                    {tx.status}
-                  </span>
-                </div>
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed top-8 right-8 z-50 animate-in slide-in-from-top-4 fade-in duration-300">
+          <div className="bg-neutral-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex flex-col gap-4 min-w-[320px]">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-brand-primary rounded-full flex items-center justify-center animate-pulse shrink-0">
+                <Bell className="w-5 h-5 text-white" />
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Top Patrons & Loyalty */}
-        <div className="bg-white rounded-2xl p-6 border border-neutral-200 shadow-sm">
-          <h3 className="font-bold text-lg text-neutral-900 mb-6">
-            Top Patrons
-          </h3>
-          <div className="space-y-4">
-            {topPatrons.map((patron) => (
-              <div
-                key={patron.id}
-                className="flex items-center justify-between p-4 bg-neutral-50 rounded-xl"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="text-2xl">{patron.avatar}</div>
-                  <div>
-                    <div className="font-bold text-sm text-neutral-900">
-                      {patron.name}
-                    </div>
-                    <div className="text-xs text-neutral-500">
-                      {patron.orders} orders
-                    </div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="font-bold text-brand-primary">
-                    {patron.revenue}
-                  </div>
-                  <div className="flex gap-1 mt-1">
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        className="w-3 h-3 fill-brand-primary text-brand-primary"
-                      />
-                    ))}
-                  </div>
-                </div>
+              <div className="flex-1">
+                <p className="font-bold">{toast.message}</p>
+                <p className="text-xs text-neutral-400">Action required immediately</p>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Special Discounts */}
-      <div className="bg-white rounded-2xl p-6 border border-neutral-200 shadow-sm">
-        <h3 className="font-bold text-lg text-neutral-900 mb-6">
-          Active Discounts & Promotions
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[
-            {
-              code: "AUTUMN20",
-              desc: "Autumn Special - 20% off",
-              status: "ACTIVE",
-            },
-            {
-              code: "WELCOME50",
-              desc: "Welcome New Users - ₹50 off",
-              status: "ACTIVE",
-            },
-            {
-              code: "LOYALTY30",
-              desc: "Loyalty Members - ₹30 off",
-              status: "ENDING",
-            },
-          ].map((promo) => (
-            <div
-              key={promo.code}
-              className="p-4 bg-gradient-to-r from-brand-primary/10 to-orange-100 border border-brand-primary/20 rounded-xl"
-            >
-              <div className="font-bold text-neutral-900">{promo.code}</div>
-              <div className="text-sm text-neutral-600 mt-1">{promo.desc}</div>
-              <span
-                className={`inline-block mt-3 text-xs font-bold px-2 py-1 rounded ${
-                  promo.status === "ACTIVE"
-                    ? "bg-green-200 text-green-900"
-                    : "bg-yellow-200 text-yellow-900"
-                }`}
+              <button 
+                onClick={() => setToast(null)}
+                className="p-2 hover:bg-neutral-800 rounded-full transition-colors"
               >
-                {promo.status}
-              </span>
+                <X className="w-4 h-4" />
+              </button>
             </div>
-          ))}
+            <div className="flex gap-2 w-full">
+              <button 
+                onClick={() => setToast(null)}
+                className="flex-1 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 rounded-xl text-xs font-bold transition-colors"
+              >
+                View
+              </button>
+              <button 
+                onClick={() => {
+                  handleStatusChange(toast.orderId, "cancelled");
+                  setToast(null);
+                }}
+                className="flex-1 px-3 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-xl text-xs font-bold transition-colors"
+              >
+                Reject
+              </button>
+              <button 
+                onClick={() => {
+                  handleStatusChange(toast.orderId, "preparing");
+                  setToast(null);
+                }}
+                className="flex-1 px-3 py-2 bg-brand-primary hover:bg-orange-600 rounded-xl text-xs font-bold transition-colors shadow-lg"
+              >
+                Accept
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
     </div>
   );
 }

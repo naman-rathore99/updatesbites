@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS menu_items (
   price INTEGER NOT NULL,
   description TEXT NOT NULL,
   image_url TEXT NOT NULL,
-  category TEXT NOT NULL CHECK (category IN ('bowls', 'burgers', 'desserts')),
+  category TEXT NOT NULL,
   badge TEXT,
   calories INTEGER,
   protein TEXT,
